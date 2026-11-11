@@ -1,0 +1,6 @@
+/build/
+/dist/
+/history.json
+*.local
+.env
+.DS_Store
