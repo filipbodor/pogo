@@ -91,6 +91,9 @@ func TestSeparateProcessesDoNotLoseVisits(t *testing.T) {
 func TestZshJumpPreservesHooksAndTreatsPathsAsData(t *testing.T) {
 	zsh, err := exec.LookPath("zsh")
 	if err != nil {
+		if os.Getenv("CI") == "true" {
+			t.Fatal("CI must provide Zsh for the integration test")
+		}
 		t.Skip("zsh is required for integration test")
 	}
 	binary := buildBinary(t)
