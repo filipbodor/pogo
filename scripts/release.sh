@@ -22,7 +22,7 @@ for target in darwin/arm64 darwin/amd64 linux/arm64 linux/amd64; do
   CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" go build -trimpath \
     -ldflags "-s -w -X main.version=${version#v}" -o "$stage/pogo" ./cmd/pogo
   cp README.md LICENSE "$stage/"
-  tar -czf "dist/pogo_${version}_${target_os}_${target_arch}.tar.gz" -C "$stage" \
+  COPYFILE_DISABLE=1 tar --no-xattrs -czf "dist/pogo_${version}_${target_os}_${target_arch}.tar.gz" -C "$stage" \
     pogo README.md LICENSE
 done
 
