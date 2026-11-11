@@ -16,7 +16,23 @@ and produces a standalone executable.
 
 ## Install
 
-With Go 1.26 or newer:
+Download the archive for your machine from [Releases](https://github.com/filipbodor/pogo/releases/latest).
+`darwin` means macOS, `arm64` means Apple Silicon or Linux ARM, and `amd64` means
+Intel/AMD. Download `checksums.txt` into the same directory and verify the archive
+before extracting it:
+
+```sh
+shasum -a 256 --ignore-missing -c checksums.txt
+tar -xzf pogo_v0.1.0_darwin_arm64.tar.gz  # Use your downloaded filename
+mkdir -p ~/.local/bin
+install -m 755 pogo ~/.local/bin/pogo
+```
+
+Your downloaded archive should report `OK`. On Linux, you can use
+`sha256sum --ignore-missing -c checksums.txt` instead. No Go installation or other
+language runtime is required to run the release binary.
+
+With Go 1.26 or newer, you can also install from source:
 
 ```sh
 go install github.com/filipbodor/pogo/cmd/pogo@latest
@@ -118,6 +134,7 @@ go vet ./...
 go test -race ./...
 go build -o build/pogo ./cmd/pogo
 ./build/pogo --version
+./scripts/release.sh v0.1.0  # Build macOS/Linux archives and SHA-256 checksums
 ```
 
 - `internal/history`: storage, concurrent writes, matching, and ranking.
