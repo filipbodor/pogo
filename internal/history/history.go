@@ -215,8 +215,27 @@ func (s Store) Prune() error {
 
 type Match struct {
 	Entry
-	Score   float64
-	PinName string
+	Score         float64
+	PinName       string
+	Frequency     float64
+	AgeDays       float64
+	RecencyFactor float64
+	BasenameBoost float64
+}
+
+func scoreEntry(entry Entry, terms []string, now time.Time) Match {
+	ageDays := 0.0
+	if !entry.LastVisited.IsZero() {
+		ageDays = math.Max(0, now.Sub(entry.LastVisited).Hours()/24)
+	}
+	frequency := math.Log1p(float64(entry.Visits))
+	recency := 1 / (1 + ageDays/7)
+	boost := 1.0
+	if len(terms) > 0 && strings.Contains(strings.ToLower(filepath.Base(entry.Path)), strings.ToLower(terms[len(terms)-1])) {
+		boost = 2
+	}
+	return Match{Entry: entry, Score: frequency * recency * boost,
+		Frequency: frequency, AgeDays: ageDays, RecencyFactor: recency, BasenameBoost: boost}
 }
 
 // Rank uses ordered, case-insensitive literal substrings, not regex or shell code.
@@ -241,12 +260,7 @@ func Rank(entries []Entry, terms []string, now time.Time) []Match {
 		if err != nil || !info.IsDir() {
 			continue
 		}
-		ageDays := math.Max(0, now.Sub(entry.LastVisited).Hours()/24)
-		score := math.Log1p(float64(entry.Visits)) / (1 + ageDays/7)
-		if len(terms) > 0 && strings.Contains(strings.ToLower(filepath.Base(entry.Path)), strings.ToLower(terms[len(terms)-1])) {
-			score *= 2
-		}
-		matches = append(matches, Match{Entry: entry, Score: score})
+		matches = append(matches, scoreEntry(entry, terms, now))
 	}
 	sort.Slice(matches, func(i, j int) bool {
 		if matches[i].Score == matches[j].Score {

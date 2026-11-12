@@ -135,6 +135,20 @@ Frequency helps familiar directories; recency helps recent visits. Ties are
 ordered by path for predictable results. Change `Rank` in
 `internal/history/history.go` to experiment with your own ranking.
 
+## Explain a jump
+
+```sh
+pogo explain client
+pogo explain work
+```
+
+This uses the same resolver as `pogo query`, showing the winner, whether an exact
+pin overrides ranking, and each matching path's visits, last visit, age, frequency
+weight, recency factor, basename multiplier, and final score. It is read-only and
+records no visits. An unvisited favorite is labeled as having no recorded visits.
+For `j ./directory` and other direct filesystem paths, normal `cd` rules apply;
+`explain` describes pin and learned-query resolution.
+
 ## Local history
 
 The default database is `~/.local/share/pogo/history.json`. An absolute

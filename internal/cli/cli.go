@@ -21,6 +21,7 @@ Usage:
   pogo query [WORDS...]  Print the highest-ranked matching directory
   pogo query --pin NAME  Print an exact pin only (exit 2 if not configured)
   pogo list [WORDS...]   Print all matching directories in rank order
+  pogo explain [WORDS...] Show the winner and ranking factors without visiting
   pogo remove PATH      Forget a directory, including a deleted one
   pogo prune            Forget directories that no longer exist
   pogo data             Print the private history file location
@@ -131,7 +132,7 @@ func (a App) run(args []string) error {
 			return errors.New("usage: pogo prune")
 		}
 		return a.Store.Prune()
-	case "query", "list":
+	case "query", "list", "explain":
 		if command == "query" && !literal && len(args) > 0 && args[0] == "--pin" {
 			args = args[1:]
 			if len(args) > 0 && args[0] == "--" {
@@ -158,6 +159,9 @@ func (a App) run(args []string) error {
 		matches, err := a.Store.Resolve(args, time.Now())
 		if err != nil {
 			return err
+		}
+		if command == "explain" {
+			return explain(a.Out, matches)
 		}
 		if command == "query" {
 			if len(matches) == 0 {

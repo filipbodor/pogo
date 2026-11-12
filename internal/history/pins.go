@@ -151,6 +151,9 @@ func (s Store) Resolve(terms []string, now time.Time) ([]Match, error) {
 			break
 		}
 	}
+	name := pinned.PinName
+	pinned = scoreEntry(pinned.Entry, terms, now)
+	pinned.PinName = name
 	result := []Match{pinned}
 	for _, match := range matches {
 		if match.Path != pinned.Path {
