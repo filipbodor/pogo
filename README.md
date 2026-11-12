@@ -91,6 +91,34 @@ evaluate them as shell commands. Paths containing NUL or newline characters are
 unsupported. Symlinks are resolved when recording visits, so aliases share history.
 Queries skip inaccessible or missing directories.
 
+## Named favorites
+
+```sh
+pogo pin work ~/Projects/app
+j work
+pogo pins
+pogo pin --replace work ~/Projects/another-app
+pogo unpin work
+```
+
+Names are case-insensitive and may contain letters, digits, dots, underscores,
+and hyphens, starting with a letter or digit. An exact name wins over learned
+rankings and a same-named local directory. Use an explicit path such as `j ./work`
+to visit the local directory instead. Multiple search words continue to use
+normal learned matching. `j` still means home and `j -` still means the previous
+directory. Open a new terminal or re-run `eval "$(pogo init zsh)"` after upgrading
+so an existing shell gets the new pin precedence.
+
+Replacing a pin requires `--replace`; re-pinning the same path is harmless.
+Missing pinned directories produce an error and never silently fall back to a
+different destination. `prune` and `remove` manage learned visits; explicit pins
+remain until `unpin`. Pinning and unpinning do not manufacture or erase visits.
+
+Favorites are stored in private `pins.json` beside `history.json`, with their own
+lock and atomic writes. The history format is unchanged and older versions cannot
+overwrite favorites. `pogo query --pin NAME` resolves only an exact favorite;
+exit status 2 means it is not configured, while status 1 reports an error.
+
 ## Matching and ranking
 
 Words are case-insensitive literal substrings that must occur in order in the

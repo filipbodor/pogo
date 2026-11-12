@@ -119,7 +119,11 @@ func (s Store) update(change func(*Database) error) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(directory, ".history-*")
+	return writeAtomic(s.Path, data)
+}
+
+func writeAtomic(path string, data []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".pogo-*")
 	if err != nil {
 		return err
 	}
@@ -135,7 +139,7 @@ func (s Store) update(change func(*Database) error) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(f.Name(), s.Path)
+	return os.Rename(f.Name(), path)
 }
 
 func (s Store) Add(path string, now time.Time) error {
@@ -211,7 +215,8 @@ func (s Store) Prune() error {
 
 type Match struct {
 	Entry
-	Score float64
+	Score   float64
+	PinName string
 }
 
 // Rank uses ordered, case-insensitive literal substrings, not regex or shell code.

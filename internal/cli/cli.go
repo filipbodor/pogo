@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -14,7 +15,11 @@ const help = `Pogo — learn your directories, then jump by name.
 
 Usage:
   pogo add [PATH]        Record one visit (default: current directory)
+  pogo pin NAME PATH     Save a named favorite (use --replace to change it)
+  pogo pins              List named favorites
+  pogo unpin NAME        Remove a favorite, preserving learned visits
   pogo query [WORDS...]  Print the highest-ranked matching directory
+  pogo query --pin NAME  Print an exact pin only (exit 2 if not configured)
   pogo list [WORDS...]   Print all matching directories in rank order
   pogo remove PATH      Forget a directory, including a deleted one
   pogo prune            Forget directories that no longer exist
@@ -26,6 +31,8 @@ Usage:
 Use -- after a subcommand to pass words or paths beginning with a dash.
 `
 
+var errNoPin = errors.New("no exact pin")
+
 type App struct {
 	Store   history.Store
 	Out     io.Writer
@@ -35,6 +42,9 @@ type App struct {
 
 func (a App) Run(args []string) int {
 	if err := a.run(args); err != nil {
+		if errors.Is(err, errNoPin) {
+			return 2
+		}
 		fmt.Fprintln(a.Err, "pogo:", err)
 		return 1
 	}
@@ -47,7 +57,8 @@ func (a App) run(args []string) error {
 		return nil
 	}
 	command, args := args[0], args[1:]
-	if len(args) > 0 && args[0] == "--" {
+	literal := len(args) > 0 && args[0] == "--"
+	if literal {
 		args = args[1:]
 	}
 	switch command {
@@ -80,22 +91,74 @@ func (a App) run(args []string) error {
 			return errors.New("usage: pogo remove PATH")
 		}
 		return a.Store.Remove(args[0])
+	case "pin":
+		replace := !literal && len(args) > 0 && args[0] == "--replace"
+		if replace {
+			args = args[1:]
+			if len(args) > 0 && args[0] == "--" {
+				args = args[1:]
+			}
+		}
+		if len(args) != 2 {
+			return errors.New("usage: pogo pin [--replace] NAME PATH")
+		}
+		return a.Store.Pin(args[0], args[1], replace)
+	case "unpin":
+		if len(args) != 1 {
+			return errors.New("usage: pogo unpin NAME")
+		}
+		return a.Store.Unpin(args[0])
+	case "pins":
+		if len(args) != 0 {
+			return errors.New("usage: pogo pins")
+		}
+		pins, err := a.Store.Pins()
+		if err != nil {
+			return err
+		}
+		var names []string
+		for name := range pins {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			if _, err := fmt.Fprintf(a.Out, "%s\t%q\n", name, pins[name]); err != nil {
+				return err
+			}
+		}
 	case "prune":
 		if len(args) != 0 {
 			return errors.New("usage: pogo prune")
 		}
 		return a.Store.Prune()
 	case "query", "list":
+		if command == "query" && !literal && len(args) > 0 && args[0] == "--pin" {
+			args = args[1:]
+			if len(args) > 0 && args[0] == "--" {
+				args = args[1:]
+			}
+			if len(args) != 1 {
+				return errors.New("usage: pogo query --pin NAME")
+			}
+			match, found, err := a.Store.Pinned(args[0])
+			if err != nil {
+				return err
+			}
+			if !found {
+				return errNoPin
+			}
+			_, err = fmt.Fprintln(a.Out, match.Path)
+			return err
+		}
 		for _, term := range args {
 			if strings.ContainsAny(term, "\x00\r\n") {
 				return errors.New("query words cannot contain NUL or newlines")
 			}
 		}
-		db, err := a.Store.Read()
+		matches, err := a.Store.Resolve(args, time.Now())
 		if err != nil {
 			return err
 		}
-		matches := history.Rank(db.Entries, args, time.Now())
 		if command == "query" {
 			if len(matches) == 0 {
 				return errors.New("no matching directory; visit it first or use pogo add PATH")

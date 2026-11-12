@@ -64,6 +64,83 @@ func buildBinary(t *testing.T) string {
 	return binary
 }
 
+func TestPinCommands(t *testing.T) {
+	store := history.Store{Path: filepath.Join(t.TempDir(), "history.json")}
+	var out, stderr bytes.Buffer
+	app := App{Store: store, Out: &out, Err: &stderr}
+	run := func(args ...string) int { out.Reset(); stderr.Reset(); return app.Run(args) }
+	dir := t.TempDir()
+	if run("pin", "Favorite", dir) != 0 {
+		t.Fatal(stderr.String())
+	}
+	if run("query", "FAVORITE") != 0 {
+		t.Fatal(stderr.String())
+	}
+	want, _ := history.Canonical(dir)
+	if strings.TrimSpace(out.String()) != want {
+		t.Fatal(out.String())
+	}
+	if run("pins") != 0 || !strings.HasPrefix(out.String(), "favorite\t") {
+		t.Fatal(out.String(), stderr.String())
+	}
+	if run("query", "--pin", "--", "absent") != 2 || out.Len() != 0 || stderr.Len() != 0 {
+		t.Fatal("missing pin must return silent exit 2")
+	}
+	if run("pin", "favorite", t.TempDir()) == 0 {
+		t.Fatal("replaced without flag")
+	}
+	if run("pin", "--replace", "favorite", dir) != 0 {
+		t.Fatal(stderr.String())
+	}
+	if run("unpin", "FAVORITE") != 0 {
+		t.Fatal(stderr.String())
+	}
+	for _, args := range [][]string{{"pin"}, {"pins", "extra"}, {"unpin"}, {"query", "--pin"}} {
+		if run(args...) == 0 {
+			t.Fatal("accepted invalid args", args)
+		}
+	}
+}
+
+func TestZshPinBeatsLocalDirectoryAndMissingPinDoesNotFallback(t *testing.T) {
+	zsh, err := exec.LookPath("zsh")
+	if err != nil {
+		if os.Getenv("CI") == "true" {
+			t.Fatal(err)
+		}
+		t.Skip("requires Zsh")
+	}
+	binary := buildBinary(t)
+	home, data := t.TempDir(), t.TempDir()
+	target := filepath.Join(t.TempDir(), "different name 'quote $(touch PWNED)")
+	if err := os.Mkdir(target, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(home, "favorite"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	want, _ := history.Canonical(target)
+	script := `eval "$(pogo init zsh)"
+pogo pin favorite "$TARGET" || exit 21
+j favorite || exit 22
+[[ "$PWD" == "$EXPECTED" ]] || exit 23
+cd -- "$HOME" || exit 24
+j ./favorite || exit 25
+[[ "$PWD" == "$HOME/favorite" ]] || exit 26
+cd -- "$HOME" || exit 27
+rmdir -- "$TARGET" || exit 28
+if j favorite >/dev/null 2>&1; then exit 29; fi
+[[ "$PWD" == "$HOME" && ! -e PWNED ]] || exit 30
+`
+	cmd := exec.Command(zsh, "-d", "-f", "-c", script)
+	cmd.Dir = home
+	cmd.Env = append(os.Environ(), "HOME="+home, "XDG_DATA_HOME="+data,
+		"PATH="+filepath.Dir(binary)+":/usr/bin:/bin", "TARGET="+target, "EXPECTED="+want)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("pin shell integration: %v\n%s", err, output)
+	}
+}
+
 func TestSeparateProcessesDoNotLoseVisits(t *testing.T) {
 	binary := buildBinary(t)
 	data := t.TempDir()
